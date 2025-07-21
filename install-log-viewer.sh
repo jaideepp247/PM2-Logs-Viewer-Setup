@@ -2,18 +2,10 @@
 
 set -e
 
-# Prompt for inputs
-if [ -z "$LOG_PATH" ]; then
-  read -p "Enter the full path to the PM2 log file: " LOG_PATH
-fi
-
-if [ -z "$APP_PORT" ]; then
-  read -p "Enter a unique port for this log viewer (e.g., 8900, 8901): " APP_PORT
-fi
-
-if [ -z "$APP_NAME" ]; then
-  read -p "Enter the App name for URL path (e.g., BE-logs): " APP_NAME
-fi
+# Prompt for user inputs
+read -p "Enter the full path to the PM2 log file: " LOG_PATH
+read -p "Enter a unique port for this log viewer (e.g., 8900, 8901): " APP_PORT
+read -p "Enter the App name for URL path (e.g., BE-logs): " APP_NAME
 
 # Validate inputs
 if [[ -z "$LOG_PATH" || -z "$APP_PORT" || -z "$APP_NAME" ]]; then
@@ -48,14 +40,14 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install flask
 
-# Create app.py
-cat <<EOF > app.py
+# Generate working app.py
+cat > app.py <<EOF
 from flask import Flask, render_template_string
 import subprocess
 
 app = Flask(__name__)
 
-LOG_FILE_PATH = "$LOG_PATH"
+LOG_FILE_PATH = "${LOG_PATH}"
 
 TEMPLATE = """
 <!DOCTYPE html>
@@ -116,35 +108,46 @@ def all_logs():
     return render_template_string(TEMPLATE_ALL, logs=logs)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=$APP_PORT, debug=False)
+    app.run(host="0.0.0.0", port=${APP_PORT}, debug=False)
 EOF
 
-# Start with PM2
+# Start the Flask app using PM2
 echo "Starting Flask app with PM2..."
 pm2 start venv/bin/python --name pm2-log-viewer-${APP_NAME} -- app.py
 pm2 save
 
-# Configure Nginx
+# Configure Nginx properly
 echo "Configuring Nginx..."
 sudo tee /etc/nginx/sites-available/pm2-log-viewer-${APP_NAME} > /dev/null <<NGINX_CONF
 server {
     listen 80;
     listen [::]:80;
 
+    server_name _;
+
     location /${APP_NAME}/ {
+        rewrite ^/${APP_NAME}/(.*)$ /$1 break;
         proxy_pass http://127.0.0.1:${APP_PORT}/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
     }
+
+    location = /${APP_NAME} {
+        return 301 /${APP_NAME}/;
+    }
 }
 NGINX_CONF
 
-# Enable site
+# Enable the new site
 sudo ln -sf /etc/nginx/sites-available/pm2-log-viewer-${APP_NAME} /etc/nginx/sites-enabled/pm2-log-viewer-${APP_NAME}
 
-# Test config and reload
+# Optional: Disable default site if needed
+# sudo rm -f /etc/nginx/sites-enabled/default
+
+# Test and reload Nginx
 sudo nginx -t
 sudo systemctl reload nginx
 
-echo "✅ Setup complete."
-echo "🔗 Access logs at: http://<your-ec2-public-ip>/${APP_NAME}/"
+echo "✅ Setup complete!"
+echo "🔗 Access your logs at: http://<your-ec2-ip>/${APP_NAME}/"
+echo "📁 App saved in: ${APP_DIR}"
