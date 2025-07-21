@@ -2,48 +2,62 @@
 
 set -e
 
-# 1️⃣ Ask user inputs
-read -p "Enter the full path to the PM2 log file: " LOG_PATH
-read -p "Enter a unique port for this log viewer (e.g., 8900, 8901): " APP_PORT
-read -p "Enter the App name for URL path (e.g., BE-logs): " APP_NAME
+# Prompt for inputs
+if [ -z "$LOG_PATH" ]; then
+  read -p "Enter the full path to the PM2 log file: " LOG_PATH
+fi
 
-# 2️⃣ Install dependencies
+if [ -z "$APP_PORT" ]; then
+  read -p "Enter a unique port for this log viewer (e.g., 8900, 8901): " APP_PORT
+fi
+
+if [ -z "$APP_NAME" ]; then
+  read -p "Enter the App name for URL path (e.g., BE-logs): " APP_NAME
+fi
+
+# Validate inputs
+if [[ -z "$LOG_PATH" || -z "$APP_PORT" || -z "$APP_NAME" ]]; then
+  echo "❌ Error: All 3 inputs must be provided."
+  exit 1
+fi
+
+# Install dependencies
 echo "Installing required packages..."
 sudo apt update
 sudo apt install -y nginx python3 python3-venv python3-pip curl
 
-# 3️⃣ Install PM2 if not present
+# Install PM2 globally if not present
 if ! command -v pm2 &> /dev/null; then
-    echo "Installing PM2..."
-    sudo npm install -g pm2
+  echo "Installing PM2..."
+  sudo npm install -g pm2
 else
-    echo "PM2 already installed."
+  echo "PM2 already installed."
 fi
 
-# 4️⃣ Setup app directory
+# App directory setup
 APP_DIR="/opt/pm2-log-viewer-${APP_NAME}"
 sudo mkdir -p "$APP_DIR"
 sudo chown $USER:$USER "$APP_DIR"
 
 cd "$APP_DIR"
 
-# 5️⃣ Python venv setup
+# Python venv setup
 python3 -m venv venv
 source venv/bin/activate
 
 pip install --upgrade pip
 pip install flask
 
-# 6️⃣ Create Flask app.py dynamically
+# Create app.py
 cat <<EOF > app.py
-from flask import Flask, render_template_string, jsonify
+from flask import Flask, render_template_string
 import subprocess
 
 app = Flask(__name__)
 
 LOG_FILE_PATH = "$LOG_PATH"
 
-TEMPLATE = \"\"\"
+TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -63,9 +77,9 @@ TEMPLATE = \"\"\"
     </form>
 </body>
 </html>
-\"\"\"
+"""
 
-TEMPLATE_ALL = \"\"\"
+TEMPLATE_ALL = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -77,12 +91,12 @@ TEMPLATE_ALL = \"\"\"
     </style>
 </head>
 <body>
-    <h1>PM2 Logs (Last 10000 Line)</h1>
+    <h1>PM2 Logs (Last 10000 Lines)</h1>
     <pre>{{ logs }}</pre>
     <a href="/">Back to live view</a>
 </body>
 </html>
-\"\"\"
+"""
 
 def get_last_n_lines(n):
     try:
@@ -105,14 +119,14 @@ if __name__ == "__main__":
     app.run(host="0.0.0.0", port=$APP_PORT, debug=False)
 EOF
 
-# 7️⃣ Run app with PM2
+# Start with PM2
 echo "Starting Flask app with PM2..."
 pm2 start venv/bin/python --name pm2-log-viewer-${APP_NAME} -- app.py
 pm2 save
 
-# 8️⃣ Configure Nginx for dynamic path
+# Configure Nginx
 echo "Configuring Nginx..."
-sudo tee /etc/nginx/sites-available/pm2-log-viewer-${APP_NAME} >/dev/null <<NGINX_CONF
+sudo tee /etc/nginx/sites-available/pm2-log-viewer-${APP_NAME} > /dev/null <<NGINX_CONF
 server {
     listen 80;
     listen [::]:80;
@@ -128,10 +142,7 @@ NGINX_CONF
 # Enable site
 sudo ln -sf /etc/nginx/sites-available/pm2-log-viewer-${APP_NAME} /etc/nginx/sites-enabled/pm2-log-viewer-${APP_NAME}
 
-# Optional: Remove default site if you want strict paths only:
-# sudo rm -f /etc/nginx/sites-enabled/default
-
-# Test and reload
+# Test config and reload
 sudo nginx -t
 sudo systemctl reload nginx
 
