@@ -6,10 +6,11 @@ set -e
 read -p "Enter the full path to the PM2 log file: " LOG_PATH
 read -p "Enter a unique port for this log viewer (e.g., 8900, 8901): " APP_PORT
 read -p "Enter the App name for URL path (e.g., BE-logs): " APP_NAME
+read -p "Enter the public IP of your EC2 instance: " PUBLIC_IP
 
 # Validate inputs
-if [[ -z "$LOG_PATH" || -z "$APP_PORT" || -z "$APP_NAME" ]]; then
-    echo "❌ Error: All 3 inputs must be provided."
+if [[ -z "$LOG_PATH" || -z "$APP_PORT" || -z "$APP_NAME" || -z "$PUBLIC_IP" ]]; then
+    echo "❌ Error: All inputs must be provided."
     exit 1
 fi
 
@@ -64,7 +65,7 @@ TEMPLATE = """
 <body>
     <h1>PM2 Logs (Live Logs)</h1>
     <pre>{{ logs }}</pre>
-    <form action="/all">
+    <form action="/${APP_NAME}/all">
         <button type="submit">View All Logs</button>
     </form>
 </body>
@@ -102,7 +103,7 @@ def index():
     logs = get_last_n_lines(30)
     return render_template_string(TEMPLATE, logs=logs)
 
-@app.route("/all")
+@app.route("/${APP_NAME}/all")
 def all_logs():
     logs = get_last_n_lines(10000)
     return render_template_string(TEMPLATE_ALL, logs=logs)
@@ -122,7 +123,7 @@ sudo tee /etc/nginx/sites-available/pm2-log-viewer-${APP_NAME} > /dev/null <<NGI
 server {
     listen 80;
 
-    server_name _;
+    server_name ${PUBLIC_IP};  # Use the EC2 public IP as the server name
 
     location /${APP_NAME}/ {
         proxy_pass http://127.0.0.1:${APP_PORT}/;
@@ -147,5 +148,5 @@ sudo nginx -t
 sudo systemctl reload nginx
 
 echo "✅ Setup complete!"
-echo "🔗 Access your logs at: http://<your-ec2-ip>/${APP_NAME}/"
+echo "🔗 Access your logs at: http://${PUBLIC_IP}/${APP_NAME}/"
 echo "📁 App saved in: ${APP_DIR}"
