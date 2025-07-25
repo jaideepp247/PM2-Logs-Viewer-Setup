@@ -9,8 +9,8 @@ read -p "Enter the App name for URL path (e.g., BE-logs): " APP_NAME
 
 # Validate inputs
 if [[ -z "$LOG_PATH" || -z "$APP_PORT" || -z "$APP_NAME" ]]; then
-  echo "❌ Error: All 3 inputs must be provided."
-  exit 1
+    echo "❌ Error: All 3 inputs must be provided."
+    exit 1
 fi
 
 # Install dependencies
@@ -20,10 +20,10 @@ sudo apt install -y nginx python3 python3-venv python3-pip curl
 
 # Install PM2 globally if not present
 if ! command -v pm2 &> /dev/null; then
-  echo "Installing PM2..."
-  sudo npm install -g pm2
+    echo "Installing PM2..."
+    sudo npm install -g pm2
 else
-  echo "PM2 already installed."
+    echo "PM2 already installed."
 fi
 
 # App directory setup
@@ -121,12 +121,10 @@ echo "Configuring Nginx..."
 sudo tee /etc/nginx/sites-available/pm2-log-viewer-${APP_NAME} > /dev/null <<NGINX_CONF
 server {
     listen 80;
-    listen [::]:80;
 
     server_name _;
 
     location /${APP_NAME}/ {
-        rewrite ^/${APP_NAME}/(.*)$ /$1 break;
         proxy_pass http://127.0.0.1:${APP_PORT}/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
