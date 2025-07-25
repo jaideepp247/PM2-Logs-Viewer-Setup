@@ -65,7 +65,7 @@ TEMPLATE = """
 <body>
     <h1>PM2 Logs (Live Logs)</h1>
     <pre>{{ logs }}</pre>
-    <form action="/${APP_NAME}/all">
+    <form action="all">
         <button type="submit">View All Logs</button>
     </form>
 </body>
@@ -103,7 +103,7 @@ def index():
     logs = get_last_n_lines(30)
     return render_template_string(TEMPLATE, logs=logs)
 
-@app.route("/${APP_NAME}/all")
+@app.route("/all")
 def all_logs():
     logs = get_last_n_lines(10000)
     return render_template_string(TEMPLATE_ALL, logs=logs)
