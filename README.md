@@ -23,4 +23,4 @@ You can quickly install the PM2 log viewer on your server with just one command.
 Run the following command on your EC2 instance or server:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/jaideepp247/PM2-Logs-Viewer-Setup/main/install-log-viewer.sh | bash
+bash <(curl -sSL https://raw.githubusercontent.com/jaideepp247/PM2-Logs-Viewer-Setup/main/install-log-viewer.sh)
